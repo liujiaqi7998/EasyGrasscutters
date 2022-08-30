@@ -12,21 +12,32 @@ import emu.grasscutter.game.entity.EntityVehicle;
 import emu.grasscutter.game.entity.GameEntity;
 import emu.grasscutter.game.player.Player;
 import emu.grasscutter.game.quest.GameQuest;
+import emu.grasscutter.game.quest.enums.QuestState;
 import emu.grasscutter.game.world.Scene;
 import emu.grasscutter.utils.Position;
 import io.javalin.websocket.WsMessageContext;
+import org.jetbrains.annotations.NotNull;
 import org.json.JSONObject;
 import top.cyqi.EasyGrasscutters.Event.KillEntityEvent;
 import top.cyqi.EasyGrasscutters.Event.PositionEvent;
+import top.cyqi.EasyGrasscutters.Event.QuestEvent;
 
+import static emu.grasscutter.Grasscutter.getLogger;
 import static emu.grasscutter.config.Configuration.GAME_OPTIONS;
 import static top.cyqi.EasyGrasscutters.EasyGrasscutters.getGameServer;
 
 public class Main {
 
-    public static void DealMessage(JSONObject object, WsMessageContext wsMessageContext) {
+    public static void DealMessage(@NotNull JSONObject object, WsMessageContext wsMessageContext) {
 
         String type = object.getString("type");
+        Player player = null;
+        String player_uid = "";
+        if (object.has("player_uid")) {
+            player_uid = object.getString("player_uid");
+            player = getGameServer().getPlayerByUid(Integer.parseInt(player_uid), false);
+        }
+
 
         switch (type) {
             case "CMD" -> {
@@ -35,10 +46,7 @@ public class Main {
                  * */
                 String rawMessage = object.getString("cmd");
                 if (object.has("player_uid")) {
-                    String player_uid = object.getString("player_uid");
-
-                    Player tmp = getGameServer().getPlayers().get(Integer.valueOf(player_uid));
-                    if (tmp == null) {
+                    if (player == null) {
                         JSONObject temp = new JSONObject();
                         temp.put("type", "error");
                         temp.put("msg_id", object.getString("msg_id"));
@@ -48,10 +56,11 @@ public class Main {
                     }
                     QMessageHandler resultCollector = new QMessageHandler();
                     resultCollector.wsMessageContext = wsMessageContext;
-                    resultCollector.player = tmp;
+                    resultCollector.player = player;
                     resultCollector.msg_id = object.getString("msg_id");
-                    tmp.setMessageHandler(resultCollector);
-                    ExecuteCommand(tmp, rawMessage);
+                    resultCollector.player_uid = player_uid;
+                    player.setMessageHandler(resultCollector);
+                    ExecuteCommand(player, rawMessage);
                 } else {
                     ExecuteCommand(null, rawMessage);
                 }
@@ -65,9 +74,8 @@ public class Main {
                 wsMessageContext.send(temp.toString());
             }
             case "GetPlayerLocation" -> {
-                String player_uid = object.getString("player_uid");
-                Player tmp = getGameServer().getPlayers().get(Integer.valueOf(player_uid));
-                if (tmp == null) {
+
+                if (player == null) {
                     JSONObject temp = new JSONObject();
                     temp.put("type", "error");
                     temp.put("msg_id", object.getString("msg_id"));
@@ -79,16 +87,16 @@ public class Main {
                 JSONObject temp = new JSONObject();
                 temp.put("type", "GetPlayerLocation");
                 temp.put("msg_id", object.getString("msg_id"));
-                temp.put("X", tmp.getPlayerLocationInfo().getPos().getX());
-                temp.put("Y", tmp.getPlayerLocationInfo().getPos().getY());
-                temp.put("Z", tmp.getPlayerLocationInfo().getPos().getZ());
-                temp.put("scene", tmp.getSceneId());
+                temp.put("X", player.getPlayerLocationInfo().getPos().getX());
+                temp.put("Y", player.getPlayerLocationInfo().getPos().getY());
+                temp.put("Z", player.getPlayerLocationInfo().getPos().getZ());
+                temp.put("scene", player.getSceneId());
+                temp.put("player_uid", player_uid);
                 wsMessageContext.send(temp.toString());
             }
 
             case "GetPlayerBirthday" -> {
-                String player_uid = object.getString("player_uid");
-                Player player = getGameServer().getPlayerByUid(Integer.parseInt(player_uid), true);
+                player = getGameServer().getPlayerByUid(Integer.parseInt(player_uid), true);
                 if (player == null) {
                     JSONObject temp = new JSONObject();
                     temp.put("type", "error");
@@ -102,12 +110,11 @@ public class Main {
                 temp.put("msg_id", object.getString("msg_id"));
                 temp.put("Month", player.getBirthday().getMonth());
                 temp.put("Day", player.getBirthday().getDay());
+                temp.put("player_uid", player_uid);
                 wsMessageContext.send(temp.toString());
             }
 
             case "QuestAction" -> {
-                String player_uid = object.getString("player_uid");
-                Player player = getGameServer().getPlayerByUid(Integer.parseInt(player_uid), false);
                 if (player == null) {
                     JSONObject temp = new JSONObject();
                     temp.put("type", "error");
@@ -120,18 +127,12 @@ public class Main {
                 JSONObject temp = new JSONObject();
                 temp.put("type", "QuestAction");
                 temp.put("msg_id", object.getString("msg_id"));
-                if (que != null) {
-                    temp.put("data", true);
-                } else {
-                    temp.put("data", false);
-                }
+                temp.put("data", que != null);
+                temp.put("player_uid", player_uid);
                 wsMessageContext.send(temp.toString());
             }
 
             case "QuestFinish" -> {
-                String player_uid = object.getString("player_uid");
-                Grasscutter.getLogger().info("1");
-                Player player = getGameServer().getPlayerByUid(Integer.parseInt(player_uid), false);
                 if (player == null) {
                     JSONObject temp = new JSONObject();
                     temp.put("type", "error");
@@ -140,7 +141,6 @@ public class Main {
                     wsMessageContext.send(temp.toString());
                     return;
                 }
-                Grasscutter.getLogger().info("2");
                 GameQuest quest = player.getQuestManager().addQuest(object.getInt("Quest_id"));
                 if (quest == null) {
                     JSONObject temp = new JSONObject();
@@ -155,6 +155,7 @@ public class Main {
                 temp.put("type", "QuestFinish");
                 temp.put("msg_id", object.getString("msg_id"));
                 temp.put("data", true);
+                temp.put("player_uid", player_uid);
                 wsMessageContext.send(temp.toString());
             }
 
@@ -181,8 +182,6 @@ public class Main {
                 PositionEvent.All_position.put(msg_id, position);
             }
             case "ChangePosition" -> {
-                String player_uid = object.getString("player_uid");
-                Player player = getGameServer().getPlayerByUid(Integer.parseInt(player_uid), false);
                 if (player == null) {
                     JSONObject temp = new JSONObject();
                     temp.put("type", "error");
@@ -204,6 +203,7 @@ public class Main {
                 temp.put("type", "QuestFinish");
                 temp.put("msg_id", object.getString("msg_id"));
                 temp.put("data", result);
+                temp.put("player_uid", player_uid);
                 wsMessageContext.send(temp.toString());
             }
             case "OnKillEntity" -> {
@@ -216,8 +216,6 @@ public class Main {
                 KillEntityEvent.All_Entity.put(msg_id, Entity_id);
             }
             case "CreateEntity" -> {
-                String player_uid = object.getString("player_uid");
-                Player player = getGameServer().getPlayerByUid(Integer.parseInt(player_uid), false);
                 if (player == null) {
                     JSONObject temp = new JSONObject();
                     temp.put("type", "error");
@@ -269,13 +267,35 @@ public class Main {
                     }
 
                     scene.addEntity(entity);
-
                     JSONObject temp = new JSONObject();
                     temp.put("type", "CreateEntity");
                     temp.put("msg_id", object.getString("msg_id"));
                     temp.put("data", entity.getId());
+                    temp.put("player_uid", player_uid);
                     wsMessageContext.send(temp.toString());
                 }
+            }
+
+            case "OnQuestChange" -> {
+                String msg_id = object.getString("msg_id");
+                int id = object.getInt("id");
+                if (object.has("del")) {
+                    QuestEvent.All_Quest.remove(id);
+                    QuestEvent.All_state.remove(id);
+                    return;
+                }
+
+                QuestState state;
+                String state_str = object.getString("state");
+                switch (state_str) {
+                    case "UNSTARTED" -> state = QuestState.QUEST_STATE_UNSTARTED;
+                    case "UNFINISHED" -> state = QuestState.QUEST_STATE_UNFINISHED;
+                    case "FINISHED" -> state = QuestState.QUEST_STATE_FINISHED;
+                    case "FAILED" -> state = QuestState.QUEST_STATE_FAILED;
+                    default -> state = QuestState.QUEST_STATE_NONE;
+                }
+                QuestEvent.All_Quest.put(id, msg_id);
+                QuestEvent.All_state.put(id, state);
             }
         }
     }
@@ -293,7 +313,7 @@ public class Main {
             CommandMap commandMap = Grasscutter.getCommandMap();
             commandMap.invoke(player, player, data);
         } catch (Exception e) {
-            Grasscutter.getLogger().info("[EasyGrasscutters] 执行命令:" + data + "发生错误:" + e.getMessage());
+            getLogger().info("[EasyGrasscutters] 执行命令:" + data + "发生错误:" + e.getMessage());
         }
     }
 }
