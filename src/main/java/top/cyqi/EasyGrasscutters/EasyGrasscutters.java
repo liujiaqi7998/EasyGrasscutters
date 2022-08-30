@@ -9,8 +9,16 @@ import emu.grasscutter.auth.DefaultAuthentication;
 import emu.grasscutter.config.ConfigContainer;
 import emu.grasscutter.plugin.Plugin;
 import emu.grasscutter.plugin.api.ServerHook;
+import emu.grasscutter.server.event.EventHandler;
+import emu.grasscutter.server.event.HandlerPriority;
+import emu.grasscutter.server.event.entity.EntityDeathEvent;
+import emu.grasscutter.server.event.player.PlayerMoveEvent;
+import emu.grasscutter.server.event.types.PlayerEvent;
 import emu.grasscutter.server.game.GameServer;
 import emu.grasscutter.server.http.HttpServer;
+import top.cyqi.EasyGrasscutters.Event.KillEntityEvent;
+import top.cyqi.EasyGrasscutters.Event.PositionEvent;
+import top.cyqi.EasyGrasscutters.Event.QuestEvent;
 import top.cyqi.EasyGrasscutters.ServerUtils.QConsoleListAppender;
 import top.cyqi.EasyGrasscutters.utils.Utils;
 import top.cyqi.EasyGrasscutters.websocket.WebSocketServer;
@@ -29,6 +37,13 @@ public class EasyGrasscutters extends Plugin {
 
     private File configFile;
     private WebSocketServer webSocketServer;
+
+    //注册玩家位置事件监听器
+    EventHandler<PlayerMoveEvent> serverPositionEvent;
+    //注册实体死亡监听器
+    EventHandler<EntityDeathEvent> serverKillEntityEvent;
+    //注册剧情改变监听器
+    EventHandler<PlayerEvent> serverQuestEvent;
 
     public static EasyGrasscutters getInstance() {
         return (EasyGrasscutters) Grasscutter.getPluginManager().getPlugin("EasyGrasscutters");
@@ -64,6 +79,21 @@ public class EasyGrasscutters extends Plugin {
             getLogger().error("远程日志注册失败，可能会无法获取服务器日志：" + e.getMessage());
         }
 
+        serverPositionEvent = new EventHandler<>(PlayerMoveEvent.class);
+        serverPositionEvent.listener(new PositionEvent());
+        serverPositionEvent.priority(HandlerPriority.NORMAL);
+        serverPositionEvent.register(this);
+
+        serverKillEntityEvent = new EventHandler<>(EntityDeathEvent.class);
+        serverKillEntityEvent.listener(new KillEntityEvent());
+        serverKillEntityEvent.priority(HandlerPriority.NORMAL);
+        serverKillEntityEvent.register(this);
+
+
+        serverQuestEvent = new EventHandler<>(PlayerEvent.class);
+        serverQuestEvent.listener(new QuestEvent());
+        serverQuestEvent.priority(HandlerPriority.NORMAL);
+        serverQuestEvent.register(this);
 
         webSocketServer.start();
         getLogger().info("Enabled 启动成功！");
@@ -73,6 +103,7 @@ public class EasyGrasscutters extends Plugin {
     @Override
     public void onDisable() {
         Grasscutter.setAuthenticationSystem(new DefaultAuthentication());
+        webSocketServer.stop();
     }
 
     public void loadConfig() {
