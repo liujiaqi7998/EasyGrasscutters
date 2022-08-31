@@ -18,7 +18,7 @@ EasyGrasscutters满足你！
 
 你甚至可以添加其他模块，与我的世界，智能家居，等其他领域联动！
 
-详细说明请看[node-red-easy-grasscutters](https://github.com/liujiaqi7998/node-red-easy-grasscutters)文档
+详细说明请看[node-red-easy-grasscutters](https://flows.nodered.org/node/node-red-easy-grasscutters)文档
 
 **说明**：
 
@@ -42,7 +42,7 @@ appreciate it if you could help translate
 
 2. 启动服务器，看到 服务器地址:wss://xxxx
 
-3. 记下地址配置node-red，请参考[node-red-easy-grasscutters](https://github.com/liujiaqi7998/node-red-easy-grasscutters)文档
+3. 记下地址配置node-red，请参考[node-red-easy-grasscutters](https://flows.nodered.org/node/node-red-easy-grasscutters)文档
 
 ## 注意事项
 
