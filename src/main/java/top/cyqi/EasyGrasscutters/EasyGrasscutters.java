@@ -12,13 +12,12 @@ import emu.grasscutter.plugin.api.ServerHook;
 import emu.grasscutter.server.event.EventHandler;
 import emu.grasscutter.server.event.HandlerPriority;
 import emu.grasscutter.server.event.entity.EntityDeathEvent;
+import emu.grasscutter.server.event.player.PlayerJoinEvent;
 import emu.grasscutter.server.event.player.PlayerMoveEvent;
 import emu.grasscutter.server.event.types.PlayerEvent;
 import emu.grasscutter.server.game.GameServer;
 import emu.grasscutter.server.http.HttpServer;
-import top.cyqi.EasyGrasscutters.Event.KillEntityEvent;
-import top.cyqi.EasyGrasscutters.Event.PositionEvent;
-import top.cyqi.EasyGrasscutters.Event.QuestEvent;
+import top.cyqi.EasyGrasscutters.Event.*;
 import top.cyqi.EasyGrasscutters.ServerUtils.QConsoleListAppender;
 import top.cyqi.EasyGrasscutters.utils.Utils;
 import top.cyqi.EasyGrasscutters.websocket.WebSocketServer;
@@ -44,6 +43,10 @@ public class EasyGrasscutters extends Plugin {
     EventHandler<EntityDeathEvent> serverKillEntityEvent;
     //注册剧情改变监听器
     EventHandler<PlayerEvent> serverQuestEvent;
+    //注册玩家进入监听器
+    EventHandler<PlayerJoinEvent> serverJoinEvent;
+    //玩家经验监听器
+    EventHandler<PlayerEvent> serverPlayerExpEvent;
 
     public static EasyGrasscutters getInstance() {
         return (EasyGrasscutters) Grasscutter.getPluginManager().getPlugin("EasyGrasscutters");
@@ -94,6 +97,17 @@ public class EasyGrasscutters extends Plugin {
         serverQuestEvent.listener(new QuestEvent());
         serverQuestEvent.priority(HandlerPriority.NORMAL);
         serverQuestEvent.register(this);
+
+
+        serverJoinEvent = new EventHandler<>(PlayerJoinEvent.class);
+        serverJoinEvent.listener(new JoinEvent());
+        serverJoinEvent.priority(HandlerPriority.NORMAL);
+        serverJoinEvent.register(this);
+
+        serverPlayerExpEvent = new EventHandler<>(PlayerEvent.class);
+        serverPlayerExpEvent.listener(new PlayerExpEvent());
+        serverPlayerExpEvent.priority(HandlerPriority.NORMAL);
+        serverPlayerExpEvent.register(this);
 
         webSocketServer.start();
         getLogger().info("Enabled 启动成功！");

@@ -6,12 +6,14 @@ import emu.grasscutter.data.GameData;
 import emu.grasscutter.data.excels.GadgetData;
 import emu.grasscutter.data.excels.ItemData;
 import emu.grasscutter.data.excels.MonsterData;
+import emu.grasscutter.database.DatabaseHelper;
 import emu.grasscutter.game.entity.EntityItem;
 import emu.grasscutter.game.entity.EntityMonster;
 import emu.grasscutter.game.entity.EntityVehicle;
 import emu.grasscutter.game.entity.GameEntity;
 import emu.grasscutter.game.mail.Mail;
 import emu.grasscutter.game.player.Player;
+import emu.grasscutter.game.quest.GameMainQuest;
 import emu.grasscutter.game.quest.GameQuest;
 import emu.grasscutter.game.quest.enums.QuestState;
 import emu.grasscutter.game.world.Scene;
@@ -21,12 +23,16 @@ import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import top.cyqi.EasyGrasscutters.Event.KillEntityEvent;
+import top.cyqi.EasyGrasscutters.Event.PlayerExpEvent;
 import top.cyqi.EasyGrasscutters.Event.PositionEvent;
 import top.cyqi.EasyGrasscutters.Event.QuestEvent;
+import top.cyqi.EasyGrasscutters.Event.content.KillEntity;
+import top.cyqi.EasyGrasscutters.Event.content.PlayerExp_t;
+import top.cyqi.EasyGrasscutters.Event.content.Quest_t;
+import top.cyqi.EasyGrasscutters.Event.content.position_t;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 import static emu.grasscutter.Grasscutter.getLogger;
 import static emu.grasscutter.config.Configuration.GAME_OPTIONS;
@@ -39,9 +45,14 @@ public class Main {
         String type = object.getString("type");
         Player player = null;
         String player_uid = "";
-        if (object.has("player_uid")) {
-            player_uid = object.getString("player_uid");
-            player = getGameServer().getPlayerByUid(Integer.parseInt(player_uid), false);
+
+        try {
+            if (object.has("player_uid")) {
+                player_uid = object.getString("player_uid");
+                player = getGameServer().getPlayerByUid(Integer.parseInt(player_uid), false);
+            }
+        } catch (Exception e) {
+            send_error("玩家UID错误:" + e.getMessage(), object, wsMessageContext);
         }
 
 
@@ -198,9 +209,7 @@ public class Main {
                     String msg_id = object.getString("msg_id");
                     try {
                         if (object.has("del")) {
-                            PositionEvent.All_position.remove(msg_id);
-                            PositionEvent.All_radius.remove(msg_id);
-                            PositionEvent.All_sceneId.remove(msg_id);
+                            PositionEvent.delete(msg_id);
                             return;
                         }
                     } catch (Exception e) {
@@ -215,9 +224,12 @@ public class Main {
                     float R = object.getFloat("R");
                     getLogger().info("[EasyGrasscutters] 添加位置监听器，X=" + X + " Y=" + Y + " Z=" + Z + " scene=" + scene + " R=" + R);
                     Position position = new Position(X, Y, Z);
-                    PositionEvent.All_radius.put(msg_id, R);
-                    PositionEvent.All_sceneId.put(msg_id, scene);
-                    PositionEvent.All_position.put(msg_id, position);
+
+                    position_t position_a = new position_t(msg_id, position, R, scene, wsMessageContext);
+                    // 发送来的数据包中如果存在player则检测player，把player传进去
+                    if (player != null)
+                        position_a.player_uid = player.getUid();
+                    PositionEvent.add_position(position_a);
                 } catch (Exception e) {
                     send_error("添加位置监听器出错:" + e.getMessage(), object, wsMessageContext);
                 }
@@ -229,7 +241,6 @@ public class Main {
                 if (!player_online(player, object, wsMessageContext)) {
                     return;
                 }
-
 
                 try {
                     assert player != null;
@@ -255,7 +266,7 @@ public class Main {
                     String msg_id = object.getString("msg_id");
                     try {
                         if (object.has("del")) {
-                            KillEntityEvent.All_Entity.remove(msg_id);
+                            KillEntityEvent.delete(msg_id);
                             return;
                         }
                     } catch (Exception e) {
@@ -263,7 +274,12 @@ public class Main {
                     }
                     int Entity_id = object.getInt("Entity");
                     getLogger().info("[EasyGrasscutters] 添加实体死亡监听器，监听实体:" + Entity_id);
-                    KillEntityEvent.All_Entity.put(msg_id, Entity_id);
+
+                    //创建监控实体对象
+                    KillEntity killEntity = new KillEntity(msg_id, Entity_id, wsMessageContext);
+                    //将该对象添加到监测表
+                    KillEntityEvent.add_killEntity(killEntity);
+
                 } catch (Exception e) {
                     send_error("添加实体死亡监听器出错:" + e.getMessage(), object, wsMessageContext);
                 }
@@ -326,16 +342,9 @@ public class Main {
             case "OnQuestChange" -> {
                 try {
                     String msg_id = object.getString("msg_id");
-
                     try {
                         if (object.has("del")) {
-                            for (int key : QuestEvent.All_Quest.keySet()) {
-                                String tmp = QuestEvent.All_Quest.get(key);
-                                if (Objects.equals(tmp, msg_id)) {
-                                    QuestEvent.All_Quest.remove(key);
-                                    QuestEvent.All_state.remove(key);
-                                }
-                            }
+                            QuestEvent.delete(msg_id);
                             return;
                         }
                     } catch (Exception e) {
@@ -356,8 +365,12 @@ public class Main {
 
                     getLogger().info("[EasyGrasscutters] 添加剧情任务监听器，监听任务:" + id + "，到" + state_str);
 
-                    QuestEvent.All_Quest.put(id, msg_id);
-                    QuestEvent.All_state.put(id, state);
+                    Quest_t Quest_a = new Quest_t(msg_id, id, state, wsMessageContext);
+                    // 发送来的数据包中如果存在player则检测player，把player传进去
+                    if (player != null)
+                        Quest_a.player_uid = player.getUid();
+                    QuestEvent.add_QuestEvent(Quest_a);
+
                 } catch (Exception e) {
                     send_error("添加剧情任务监听器出错:" + e.getMessage(), object, wsMessageContext);
                 }
@@ -430,6 +443,67 @@ public class Main {
                     send_error("发送邮件出错:" + e.getMessage(), object, wsMessageContext);
                 }
             }
+            case "DelQuest" -> {
+                // 判断所述玩家是否在线
+                if (!player_online(player, object, wsMessageContext)) {
+                    return;
+                }
+                try {
+                    assert player != null;
+                    String Quest_id = object.getString("Quest_id");
+                    List<GameMainQuest> gameMainQuests = DatabaseHelper.getAllQuests(player);
+                    boolean flag = false;
+                    for (GameMainQuest gameMainQuest : gameMainQuests) {
+                        //如果任务id相同,或者全部删除
+                        if (Quest_id.equals("ALL") || Quest_id.contains(gameMainQuest.getParentQuestId() + "")) {
+                            flag = true;
+                            //删除任务
+                            DatabaseHelper.deleteQuest(gameMainQuest);
+                            if (!Quest_id.equals("ALL")) {
+                                return;
+                            }
+                        }
+                    }
+                    getLogger().info("[EasyGrasscutters] 删除剧情:玩家" + player.getUid());
+                    JSONObject temp = new JSONObject();
+                    temp.put("type", "DelQuest");
+                    temp.put("msg_id", object.getString("msg_id"));
+                    temp.put("data", flag);
+                    temp.put("player_uid", player_uid);
+                    wsMessageContext.send(temp.toString());
+                } catch (Exception e) {
+                    send_error("删除任务出错:" + e.getMessage(), object, wsMessageContext);
+                }
+            }
+            case "OnPlayerExp" -> {
+
+                try {
+                    String msg_id = object.getString("msg_id");
+                    try {
+                        if (object.has("del")) {
+                            PlayerExpEvent.delete(msg_id);
+                            return;
+                        }
+                    } catch (Exception e) {
+                        send_error("删除玩家经验监听器出错:" + e.getMessage(), object, wsMessageContext);
+                    }
+
+                    getLogger().info("[EasyGrasscutters] 添加玩家经验监听器");
+
+                    Integer experience = object.getInt("Exp");
+                    //创建监控实体对象
+                    PlayerExp_t PlayerExp_a = new PlayerExp_t(msg_id, experience, wsMessageContext);
+                    // 发送来的数据包中如果存在player则检测player，把player传进去
+                    if (player != null)
+                        PlayerExp_a.player_uid = player.getUid();
+                    //将该对象添加到监测表
+                    PlayerExpEvent.add_PlayerExpEvent(PlayerExp_a);
+
+                } catch (Exception e) {
+                    send_error("设置玩家经验监听器出错:" + e.getMessage(), object, wsMessageContext);
+                }
+            }
+
 
         }
     }

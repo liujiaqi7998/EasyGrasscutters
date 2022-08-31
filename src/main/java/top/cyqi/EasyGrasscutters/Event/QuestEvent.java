@@ -1,43 +1,44 @@
 package top.cyqi.EasyGrasscutters.Event;
 
 import emu.grasscutter.game.player.Player;
-import emu.grasscutter.game.quest.GameQuest;
-import emu.grasscutter.game.quest.enums.QuestState;
 import emu.grasscutter.server.event.types.PlayerEvent;
 import emu.grasscutter.utils.EventConsumer;
-import org.json.JSONObject;
-import top.cyqi.EasyGrasscutters.websocket.WebSocketServer;
+import top.cyqi.EasyGrasscutters.Event.content.Quest_t;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 public class QuestEvent implements EventConsumer<PlayerEvent> {
 
-    //¼àÌý¾çÇé
-    public static Map<Integer, String> All_Quest = new HashMap<>();
-    //¾çÇéÔ¤ÆÚ×´Ì¬
-    public static Map<Integer, QuestState> All_state = new HashMap<>();
+
+    public static Map<String, Quest_t> All_Quest = new HashMap<>();
 
     @Override
     public void consume(PlayerEvent playerEvent) {
         Player player = playerEvent.getPlayer();
-        for (int key : All_Quest.keySet()) {
-            GameQuest tmp = player.getQuestManager().getQuestById(key);
-            if (tmp != null) {
-                QuestState state = All_state.get(key);
-                if (tmp.getState() == state) {
-                    JSONObject temp = new JSONObject();
-                    temp.put("type", "OnQuestChange");
-                    temp.put("msg_id", All_Quest.get(key));
-                    temp.put("data", player.getUid());
-                    WebSocketServer.ClientContextMap.keySet().stream().filter(ctx -> ctx.session.isOpen()).forEach(session -> session.send(temp.toString()));
-                    All_Quest.remove(key);
-                    All_state.remove(key);
-                }
 
+        for (String key : All_Quest.keySet()) {
+            Quest_t Quest_a = All_Quest.get(key);
+            if (Quest_a.check(player)) {
+                All_Quest.remove(key);
             }
         }
-
-
     }
+
+    public static void delete(String msg_id) {
+        for (String key : All_Quest.keySet()) {
+            Quest_t Quest_a = All_Quest.get(key);
+            if (Quest_a.msg_id.equals(msg_id)) {
+                All_Quest.remove(key);
+            }
+
+        }
+    }
+
+    public static void add_QuestEvent(Quest_t Quest_a) {
+        String uuid = UUID.randomUUID().toString();
+        All_Quest.put(uuid, Quest_a);
+    }
+
 }

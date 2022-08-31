@@ -5,8 +5,6 @@ import top.cyqi.EasyGrasscutters.EasyGrasscutters;
 
 public class Utils {
 
-    private static final Runtime RUNTIME = Runtime.getRuntime();
-
     public static String GetDispatchAddress() {
 
         return "ws" + (EasyGrasscutters.getServerConfig().server.http.encryption.useEncryption ? "s" : "") + "://" +
