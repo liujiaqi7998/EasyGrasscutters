@@ -12,8 +12,10 @@ import emu.grasscutter.plugin.api.ServerHook;
 import emu.grasscutter.server.event.EventHandler;
 import emu.grasscutter.server.event.HandlerPriority;
 import emu.grasscutter.server.event.entity.EntityDeathEvent;
+import emu.grasscutter.server.event.game.SendPacketEvent;
 import emu.grasscutter.server.event.player.PlayerJoinEvent;
 import emu.grasscutter.server.event.player.PlayerMoveEvent;
+import emu.grasscutter.server.event.player.PlayerQuitEvent;
 import emu.grasscutter.server.event.types.PlayerEvent;
 import emu.grasscutter.server.game.GameServer;
 import emu.grasscutter.server.http.HttpServer;
@@ -45,8 +47,14 @@ public class EasyGrasscutters extends Plugin {
     EventHandler<PlayerEvent> serverQuestEvent;
     //注册玩家进入监听器
     EventHandler<PlayerJoinEvent> serverJoinEvent;
+    //注册玩家退出监听器
+    EventHandler<PlayerQuitEvent> serverQuitEvent;
     //玩家经验监听器
     EventHandler<PlayerEvent> serverPlayerExpEvent;
+    //玩家聊天监听器
+    EventHandler<SendPacketEvent> serverChatEvent;
+    //注册NPC对话监听器
+    EventHandler<SendPacketEvent> serverNpcTalkEvent;
 
     public static EasyGrasscutters getInstance() {
         return (EasyGrasscutters) Grasscutter.getPluginManager().getPlugin("EasyGrasscutters");
@@ -54,6 +62,18 @@ public class EasyGrasscutters extends Plugin {
 
     @Override
     public void onEnable() {
+
+        String pic_str = """
+                ╭━━━╮          ╭━━━╮                ╭╮ ╭╮
+                ┃╭━━╯          ┃╭━╮┃               ╭╯╰┳╯╰╮
+                ┃╰━━┳━━┳━━┳╮ ╭╮┃┃╱╰╋━┳━━┳━━┳━━┳━━┳╮┣╮╭┻╮╭╋━━┳━┳━━╮
+                ┃╭━━┫╭╮┃━━┫┃ ┃┃┃┃╭━┫╭┫╭╮┃━━┫━━┫╭━┫┃┃┃┃╱┃┃┃┃━┫╭┫━━┫
+                ┃╰━━┫╭╮┣━━┃╰━╯┃┃╰┻━┃┃┃╭╮┣━━┣━━┃╰━┫╰╯┃╰╮┃╰┫┃━┫┃┣━━┃
+                ╰━━━┻╯╰┻━━┻━╮╭╯╰━━━┻╯╰╯╰┻━━┻━━┻━━┻━━┻━╯╰━┻━━┻╯╰━━╯
+                          ╭━╯┃
+                          ╰━━╯""";
+        System.out.println(pic_str);
+
         webSocketServer = new WebSocketServer();
         configFile = new File(getDataFolder().toPath() + "/config.json");
         if (!configFile.exists()) {
@@ -65,13 +85,26 @@ public class EasyGrasscutters extends Plugin {
         }
 
         loadConfig();
-
         if (config.token == null || config.token.equals("")) {
+            getLogger().info("[EasyGrasscutters] 未读取到配置文件，生成配置文件");
             config.token = Utils.generateRandomString(8);
         }
-
         saveConfig();
+        getLogger().info("[EasyGrasscutters] 配置文件加载完成");
 
+        //注册玩家位置事件监听器
+        Registered_monitor();
+        getLogger().info("[EasyGrasscutters] 事件监听器注册完成");
+
+        //注册websocket服务
+        webSocketServer.start();
+        getLogger().info("[EasyGrasscutters] 启动成功！");
+        getLogger().info("[EasyGrasscutters] 前端安装方法: https://flows.nodered.org/node/node-red-easy-grasscutters");
+        getLogger().info("[EasyGrasscutters] 服务器地址: " + Utils.GetDispatchAddress() + "/easy/" + config.token);
+        System.out.println("---------------------------------------");
+    }
+
+    public void Registered_monitor() {
         try {
             ListAppender<ILoggingEvent> listAppender = new QConsoleListAppender<>();
             listAppender.start();
@@ -82,36 +115,79 @@ public class EasyGrasscutters extends Plugin {
             getLogger().error("远程日志注册失败，可能会无法获取服务器日志：" + e.getMessage());
         }
 
-        serverPositionEvent = new EventHandler<>(PlayerMoveEvent.class);
-        serverPositionEvent.listener(new PositionEvent());
-        serverPositionEvent.priority(HandlerPriority.NORMAL);
-        serverPositionEvent.register(this);
+        try {
+            serverPositionEvent = new EventHandler<>(PlayerMoveEvent.class);
+            serverPositionEvent.listener(new PositionEvent());
+            serverPositionEvent.priority(HandlerPriority.NORMAL);
+            serverPositionEvent.register(this);
+        } catch (Exception e) {
+            getLogger().error("注册玩家位置事件监听器出现错误，可能会导致玩家位置触发不可用：" + e.getMessage());
+        }
 
-        serverKillEntityEvent = new EventHandler<>(EntityDeathEvent.class);
-        serverKillEntityEvent.listener(new KillEntityEvent());
-        serverKillEntityEvent.priority(HandlerPriority.NORMAL);
-        serverKillEntityEvent.register(this);
+        try {
+            serverKillEntityEvent = new EventHandler<>(EntityDeathEvent.class);
+            serverKillEntityEvent.listener(new KillEntityEvent());
+            serverKillEntityEvent.priority(HandlerPriority.NORMAL);
+            serverKillEntityEvent.register(this);
+        } catch (Exception e) {
+            getLogger().error("注册实体死亡监听器出现错误，可能会导致杀怪触发不可用：" + e.getMessage());
+        }
 
+        try {
+            serverQuestEvent = new EventHandler<>(PlayerEvent.class);
+            serverQuestEvent.listener(new QuestEvent());
+            serverQuestEvent.priority(HandlerPriority.NORMAL);
+            serverQuestEvent.register(this);
+        } catch (Exception e) {
+            getLogger().error("注册剧情改变监听器出现错误，可能会导致完成剧情触发不可用：" + e.getMessage());
+        }
 
-        serverQuestEvent = new EventHandler<>(PlayerEvent.class);
-        serverQuestEvent.listener(new QuestEvent());
-        serverQuestEvent.priority(HandlerPriority.NORMAL);
-        serverQuestEvent.register(this);
+        try {
+            serverJoinEvent = new EventHandler<>(PlayerJoinEvent.class);
+            serverJoinEvent.listener(new JoinEvent());
+            serverJoinEvent.priority(HandlerPriority.NORMAL);
+            serverJoinEvent.register(this);
+        } catch (Exception e) {
+            getLogger().error("注册玩家进入监听器出现错误，可能会导致玩家进入触发不可用：" + e.getMessage());
+        }
 
+        try {
+            serverQuitEvent = new EventHandler<>(PlayerQuitEvent.class);
+            serverQuitEvent.listener(new QuitEvent());
+            serverQuitEvent.priority(HandlerPriority.NORMAL);
+            serverQuitEvent.register(this);
+        } catch (Exception e) {
+            getLogger().error("注册玩家退出监听器出现错误，可能会导致玩家退出触发不可用：" + e.getMessage());
+        }
 
-        serverJoinEvent = new EventHandler<>(PlayerJoinEvent.class);
-        serverJoinEvent.listener(new JoinEvent());
-        serverJoinEvent.priority(HandlerPriority.NORMAL);
-        serverJoinEvent.register(this);
+        try {
+            serverPlayerExpEvent = new EventHandler<>(PlayerEvent.class);
+            serverPlayerExpEvent.listener(new PlayerExpEvent());
+            serverPlayerExpEvent.priority(HandlerPriority.NORMAL);
+            serverPlayerExpEvent.register(this);
+        } catch (Exception e) {
+            getLogger().error("注册玩家经验监听器出现错误，可能会导致玩家经验触发不可用：" + e.getMessage());
+        }
 
-        serverPlayerExpEvent = new EventHandler<>(PlayerEvent.class);
-        serverPlayerExpEvent.listener(new PlayerExpEvent());
-        serverPlayerExpEvent.priority(HandlerPriority.NORMAL);
-        serverPlayerExpEvent.register(this);
+        //注册玩家聊天监听器
+        try {
+            serverChatEvent = new EventHandler<>(SendPacketEvent.class);
+            serverChatEvent.listener(new ChatEvent());
+            serverChatEvent.priority(HandlerPriority.NORMAL);
+            serverChatEvent.register(this);
+        } catch (Exception e) {
+            getLogger().error("注册玩家聊天监听器出现错误，可能会导致玩家聊天触发不可用：" + e.getMessage());
+        }
 
-        webSocketServer.start();
-        getLogger().info("Enabled 启动成功！");
-        getLogger().info("服务器地址:" + Utils.GetDispatchAddress() + "/easy/" + config.token);
+        //注册NPC对话监听器
+        try {
+            serverNpcTalkEvent = new EventHandler<>(SendPacketEvent.class);
+            serverNpcTalkEvent.listener(new NpcTalkEvent());
+            serverNpcTalkEvent.priority(HandlerPriority.NORMAL);
+            serverNpcTalkEvent.register(this);
+        } catch (Exception e) {
+            getLogger().error("注册NPC对话监听器出现错误，可能会导致玩家聊天触发不可用：" + e.getMessage());
+        }
     }
 
     @Override
@@ -134,7 +210,7 @@ public class EasyGrasscutters extends Plugin {
         try (FileWriter file = new FileWriter(configFile)) {
             file.write(gson.toJson(config));
         } catch (Exception e) {
-            getLogger().error("Unable to save config file.");
+            getLogger().error("无法保存配置文件!" + e.getMessage());
         }
     }
 

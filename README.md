@@ -36,6 +36,10 @@ appreciate it if you could help translate
 
 * 实现基本的节点，可以实现命令调试。（适配 Grasscutters 1.2.3）
 
+### v2.0.0
+
+* 兼容最新版，优化细节，添加聊天触发和NPC对话触发监听器（未来再完善该功能）（适配 Grasscutters 1.2.3 dev-#735b48e 2022.9.2）
+
 ### 使用方法
 
 1. 将本插件放在plugin文件夹

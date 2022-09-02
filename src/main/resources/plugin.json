@@ -1,7 +1,7 @@
 {
   "name": "EasyGrasscutters",
   "description": "割草机 Node-RED 连接插件",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": [
     "666Qi"
   ],
