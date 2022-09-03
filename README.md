@@ -34,11 +34,20 @@ appreciate it if you could help translate
 
 ### v1.0.0
 
-* 实现基本的节点，可以实现命令调试。（适配 Grasscutters 1.2.3）
+* 实现基本的节点，可以实现命令调试。
+* 适配 Grasscutters 1.2.3
 
 ### v2.0.0
 
-* 兼容最新版，优化细节，添加聊天触发和NPC对话触发监听器（未来再完善该功能）（适配 Grasscutters 1.2.3 dev-#735b48e 2022.9.2）
+* 兼容最新版，
+* 优化细节，添加聊天触发和NPC对话触发监听器（未来再完善该功能）
+* 适配 Grasscutters 1.2.3 dev-#735b48e 2022.9.2
+
+### v3.0.0
+
+* 添加：退出游戏检测 、与NPC对话 和 玩家发送指定信息检测
+* 适配 Grasscutters 1.3.0
+* 请将Node-Red端插件更新到v0.0.4版本
 
 ### 使用方法
 

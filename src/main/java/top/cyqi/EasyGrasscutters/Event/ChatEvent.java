@@ -1,16 +1,23 @@
 package top.cyqi.EasyGrasscutters.Event;
 
 import emu.grasscutter.net.packet.PacketOpcodes;
-import emu.grasscutter.net.proto.PlayerChatReqOuterClass;
+import emu.grasscutter.net.proto.ChatInfoOuterClass;
+import emu.grasscutter.net.proto.PrivateChatNotifyOuterClass;
 import emu.grasscutter.server.event.game.SendPacketEvent;
 import emu.grasscutter.utils.EventConsumer;
 import org.json.JSONObject;
+import top.cyqi.EasyGrasscutters.Event.content.ChatEvent_t;
 import top.cyqi.EasyGrasscutters.websocket.WebSocketServer;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 import static emu.grasscutter.Grasscutter.getLogger;
 
 public class ChatEvent implements EventConsumer<SendPacketEvent> {
 
+    public static Map<String, ChatEvent_t> All_Chat = new HashMap<>();
 
     @Override
     public void consume(SendPacketEvent sendPacketEvent) {
@@ -20,29 +27,34 @@ public class ChatEvent implements EventConsumer<SendPacketEvent> {
             // 确定是私聊数据包
             //getLogger().info("玩家发送私聊数据包");
             try {
-                PlayerChatReqOuterClass.PlayerChatReq chatInfo = PlayerChatReqOuterClass.PlayerChatReq.parseFrom(sendPacketEvent.getPacket().getData());
+                PrivateChatNotifyOuterClass.PrivateChatNotify privateChatNotify = PrivateChatNotifyOuterClass.PrivateChatNotify.parseFrom(sendPacketEvent.getPacket().getData());//解析数据包
+                if (!privateChatNotify.hasChatInfo()) {
+                    //无效数据包
+                    return;
+                }
 
-                // 我不理解？ 为什么hasChatInfo()返回的是false？
-                // 没办法只能 toString 了
-                /* > 7: {
-                          7: 99
-                          13: 1662120300
-                          15: 666777
-                          1946: "3"
-                        }
-                 */
-
-                //分割文本
-//                Integer ToUid = Integer.valueOf(resolveString(chatInfo.toString(),"  7: "));
-//                Integer FromUid = Integer.valueOf(resolveString(chatInfo.toString(),"  15: "));
-//                int star = chatInfo.toString().indexOf("  1946: \"") + 9;
-//                int end = chatInfo.toString().indexOf("\"\n",star);
-//                String msg =  chatInfo.toString().substring(star, end);
-
-                // 生成JSON
+                ChatInfoOuterClass.ChatInfo chatInfo = privateChatNotify.getChatInfo();//提取聊天数据
+                ChatInfoOuterClass.ChatInfo.ContentCase content = chatInfo.getContentCase();//获取聊天内容类型用于判断是文字还是表情
                 JSONObject json = new JSONObject();
                 json.put("type", "OnChat");
-                json.put("data", chatInfo.toString());
+                json.put("from", chatInfo.getUid());
+                json.put("to", chatInfo.getToUid());
+                if (content == ChatInfoOuterClass.ChatInfo.ContentCase.TEXT) {
+                    json.put("msg_type", "TEXT");
+                    json.put("data", chatInfo.getText());
+
+                    for (String key : All_Chat.keySet()) {
+                        ChatEvent_t ChatEvent_a = All_Chat.get(key);
+                        if (ChatEvent_a.check(String.valueOf(chatInfo.getUid()), String.valueOf(chatInfo.getToUid()), chatInfo.getText())) {
+                            All_Chat.remove(key);
+                        }
+                    }
+
+                } else if (content == ChatInfoOuterClass.ChatInfo.ContentCase.ICON) {
+                    json.put("msg_type", "ICON");
+                    json.put("data", chatInfo.getIcon());
+                }
+
                 WebSocketServer.ClientContextMap.keySet().stream().filter(ctx -> ctx.session.isOpen()).forEach(session -> session.send(json.toString()));
 
 
@@ -53,10 +65,19 @@ public class ChatEvent implements EventConsumer<SendPacketEvent> {
         }
     }
 
-    // 手撕数据包
-    public String resolveString(String str, String key) {
-        int star = str.indexOf(key) + key.length();
-        int end = str.indexOf("\n", star);
-        return str.substring(star, end);
+    public static void delete(String msg_id) {
+        for (String key : All_Chat.keySet()) {
+            ChatEvent_t ChatEvent_a = All_Chat.get(key);
+            if (ChatEvent_a.msg_id.equals(msg_id)) {
+                All_Chat.remove(key);
+            }
+
+        }
     }
+
+    public static void add_ChatEvent(ChatEvent_t ChatEvent_a) {
+        String uuid = UUID.randomUUID().toString();
+        All_Chat.put(uuid, ChatEvent_a);
+    }
+
 }

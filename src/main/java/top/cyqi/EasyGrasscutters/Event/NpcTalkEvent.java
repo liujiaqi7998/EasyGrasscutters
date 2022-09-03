@@ -22,7 +22,9 @@ public class NpcTalkEvent implements EventConsumer<SendPacketEvent> {
                 NpcTalkReqOuterClass.NpcTalkReq talkInfo = NpcTalkReqOuterClass.NpcTalkReq.parseFrom(sendPacketEvent.getPacket().getData());
                 JSONObject json = new JSONObject();
                 json.put("type", "OnNpcTalk");
-                json.put("data", talkInfo.toString());
+                json.put("npc_id", talkInfo.getNpcEntityId());
+                json.put("TalkId", talkInfo.getTalkId());
+                json.put("data", true);
                 WebSocketServer.ClientContextMap.keySet().stream().filter(ctx -> ctx.session.isOpen()).forEach(session -> session.send(json.toString()));
             } catch (Exception e) {
                 getLogger().error("NPC对话监听器解包错误:" + e.getMessage());

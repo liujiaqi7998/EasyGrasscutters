@@ -22,14 +22,8 @@ import io.javalin.websocket.WsMessageContext;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import top.cyqi.EasyGrasscutters.Event.KillEntityEvent;
-import top.cyqi.EasyGrasscutters.Event.PlayerExpEvent;
-import top.cyqi.EasyGrasscutters.Event.PositionEvent;
-import top.cyqi.EasyGrasscutters.Event.QuestEvent;
-import top.cyqi.EasyGrasscutters.Event.content.KillEntity;
-import top.cyqi.EasyGrasscutters.Event.content.PlayerExp_t;
-import top.cyqi.EasyGrasscutters.Event.content.Quest_t;
-import top.cyqi.EasyGrasscutters.Event.content.position_t;
+import top.cyqi.EasyGrasscutters.Event.*;
+import top.cyqi.EasyGrasscutters.Event.content.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -503,7 +497,38 @@ public class Main {
                     send_error("设置玩家经验监听器出错:" + e.getMessage(), object, wsMessageContext);
                 }
             }
+            case "OnChatMsg" -> {
 
+                try {
+                    String msg_id = object.getString("msg_id");
+                    try {
+                        if (object.has("del")) {
+                            ChatEvent.delete(msg_id);
+                            return;
+                        }
+                    } catch (Exception e) {
+                        send_error("删除玩家信息监听器出错:" + e.getMessage(), object, wsMessageContext);
+                    }
+
+
+                    String player_to_uid = "0";
+                    if (object.has("to")) {
+                        player_to_uid = object.getString("to");
+                    }
+
+                    if (player == null)
+                        player_uid = "0";
+
+                    String msg_data = object.getString("msg_data");
+                    //创建监控实体对象
+                    ChatEvent_t Chat_a = new ChatEvent_t(msg_id, player_uid, player_to_uid, msg_data, wsMessageContext);
+                    //将该对象添加到监测表
+                    ChatEvent.add_ChatEvent(Chat_a);
+                    getLogger().info("[EasyGrasscutters] 添加玩家信息监听器:" + msg_data);
+                } catch (Exception e) {
+                    send_error("设置玩家信息监听器出错:" + e.getMessage(), object, wsMessageContext);
+                }
+            }
 
         }
     }
